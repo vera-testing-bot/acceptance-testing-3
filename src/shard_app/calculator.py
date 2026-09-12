@@ -5,17 +5,27 @@ global, serialized it to localStorage by hand, and the history panel kept a
 separate copy that drifted. All of that is gone: the calculator reads and
 writes through the store, and history is a view over the store's ``history``
 field rather than its own storage.
+
+The calculator template renders the full calculator; the display markup lives
+in its own component (:mod:`shard_app.display`) and is injected here, keeping
+behavior unchanged.
 """
 
 from __future__ import annotations
 
 import ast
 import math
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+from shard_app.display import render_display
 
 if TYPE_CHECKING:
     from .store import Store
 
+_CALCULATOR_TEMPLATE = (
+    Path(__file__).parent / "templates" / "calculator.html"
+).read_text()
 
 _ALLOWED_BINOPS = {
     ast.Add: lambda a, b: a + b,
@@ -181,3 +191,8 @@ class Settings:
         if value < 0:
             raise ValueError("precision must be non-negative")
         self._store.set("precision", int(value), self.WRITER)
+
+
+def render_calculator(value: object) -> str:
+    """Render the calculator template, wiring in the display component."""
+    return _CALCULATOR_TEMPLATE.replace("{display}", render_display(value))
