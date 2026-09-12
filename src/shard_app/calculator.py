@@ -9,11 +9,28 @@ field rather than its own storage.
 
 from __future__ import annotations
 
+import ast
 import math
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .store import Store
+
+
+_ALLOWED_BINOPS = {
+    ast.Add: lambda a, b: a + b,
+    ast.Sub: lambda a, b: a - b,
+    ast.Mult: lambda a, b: a * b,
+    ast.Div: lambda a, b: a / b,
+    ast.Mod: lambda a, b: a % b,
+    ast.Pow: lambda a, b: a**b,
+    ast.FloorDiv: lambda a, b: a // b,
+}
+
+_ALLOWED_UNARYOPS = {
+    ast.UAdd: lambda a: +a,
+    ast.USub: lambda a: -a,
+}
 
 
 class Calculator:
@@ -78,7 +95,43 @@ class Calculator:
             allowed["sin"] = lambda x: math.sin(math.radians(x))
             allowed["cos"] = lambda x: math.cos(math.radians(x))
             allowed["tan"] = lambda x: math.tan(math.radians(x))
-        return float(eval(expr, {"__builtins__": {}}, allowed))
+        return float(self._eval_node(ast.parse(expr, mode="eval").body, allowed))
+
+    def _eval_node(self, node: ast.AST, names: dict[str, object]) -> float:
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, (int, float)) and not isinstance(
+                node.value, bool
+            ):
+                return node.value
+            raise ValueError(f"unsupported constant: {node.value!r}")
+        if isinstance(node, ast.BinOp):
+            op = _ALLOWED_BINOPS.get(type(node.op))
+            if op is None:
+                raise ValueError(f"unsupported operator: {type(node.op).__name__}")
+            return op(
+                self._eval_node(node.left, names), self._eval_node(node.right, names)
+            )
+        if isinstance(node, ast.UnaryOp):
+            op = _ALLOWED_UNARYOPS.get(type(node.op))
+            if op is None:
+                raise ValueError(f"unsupported unary op: {type(node.op).__name__}")
+            return op(self._eval_node(node.operand, names))
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name):
+                raise TypeError("only named function calls are allowed")
+            func = names.get(node.func.id)
+            if func is None:
+                raise NameError(f"unknown function: {node.func.id!r}")
+            if node.keywords:
+                raise ValueError("keyword arguments are not allowed")
+            args = [self._eval_node(a, names) for a in node.args]
+            return func(*args)  # type: ignore[operator]
+        if isinstance(node, ast.Name):
+            value = names.get(node.id)
+            if value is None:
+                raise NameError(f"unknown name: {node.id!r}")
+            return value  # type: ignore[return-value]
+        raise ValueError(f"unsupported expression node: {type(node).__name__}")
 
 
 class HistoryPanel:

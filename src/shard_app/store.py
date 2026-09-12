@@ -23,8 +23,10 @@ and ``write(str) -> None`` works. :class:`MemoryBackend` is the default;
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -45,6 +47,18 @@ class Field:
         """Coerce ``value`` to this field's type, raising on impossible casts."""
         if value is None:
             return self.default
+        if isinstance(value, self.type):
+            return value
+        if self.type is list:
+            if isinstance(value, str):
+                raise TypeError(f"field {self.name!r} expects list, got str: {value!r}")
+            try:
+                return list(value)
+            except TypeError as exc:
+                raise TypeError(
+                    f"field {self.name!r} expects list, got "
+                    f"{type(value).__name__}: {value!r}"
+                ) from exc
         try:
             return self.type(value)
         except (TypeError, ValueError) as exc:
@@ -108,8 +122,20 @@ class FileBackend:
             return None
 
     def write(self, payload: str) -> None:
-        with open(self._path, "w", encoding="utf-8") as fh:
-            fh.write(payload)
+        directory = os.path.dirname(self._path) or "."
+        fd, tmp_path = tempfile.mkstemp(prefix=".store-", suffix=".tmp", dir=directory)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp_path, self._path)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
 
 MigrationFn = Callable[[Mapping[str, Any]], dict[str, Any]]
@@ -132,7 +158,7 @@ def _migrate_v0_to_v1(blob: Mapping[str, Any]) -> dict[str, Any]:
     }
     out["display"] = str(blob.get("display", blob.get("displayValue", "0")))
     raw_history = blob.get("history", blob.get("entries", []))
-    out["history"] = list(raw_history) if isinstance(raw_history, Sequence) else []
+    out["history"] = list(raw_history) if isinstance(raw_history, (list, tuple)) else []
     out["angle_mode"] = str(blob.get("angle_mode", blob.get("angleMode", "deg")))
     out["precision"] = int(blob.get("precision", blob.get("rounding", 6)))
     return out
@@ -140,11 +166,13 @@ def _migrate_v0_to_v1(blob: Mapping[str, Any]) -> dict[str, Any]:
 
 def _migrate_v1_to_v2(blob: Mapping[str, Any]) -> dict[str, Any]:
     """Upgrade a v1 blob to the current v2 shape (adds ``last_writer``)."""
+    raw_history = blob.get("history", [])
+    history = list(raw_history) if isinstance(raw_history, (list, tuple)) else []
     return {
         "schema_version": SCHEMA_VERSION,
         "shape": CURRENT_SHAPE,
         "display": str(blob.get("display", "0")),
-        "history": list(blob.get("history", [])),
+        "history": history,
         "angle_mode": str(blob.get("angle_mode", "deg")),
         "precision": int(blob.get("precision", 6)),
         "last_writer": None,
