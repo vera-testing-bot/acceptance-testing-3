@@ -22,6 +22,7 @@ from shard_app import (
     Settings,
     Store,
     add,
+    is_palindrome,
     migrate,
 )
 from shard_app.store import CURRENT_SHAPE, default_schema
@@ -31,6 +32,17 @@ from shard_app.store import CURRENT_SHAPE, default_schema
 
 def test_add() -> None:
     assert add(2, 3) == 5
+
+
+# -- is_palindrome helper --------------------------------------------------
+
+
+def test_is_palindrome_true_for_ignoring_case_and_non_alnum() -> None:
+    assert is_palindrome("A man, a plan, a canal: Panama") is True
+
+
+def test_is_palindrome_false_for_non_palindrome() -> None:
+    assert is_palindrome("hello") is False
 
 
 # -- store: typed accessors ------------------------------------------------
