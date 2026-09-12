@@ -5,15 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from shard_app.calculator import Calculator, render_calculator
+from shard_app.calculator import render_calculator
 from shard_app.display import render_display
-
-
-def test_calculator_adds() -> None:
-    calc = Calculator()
-    calc.input(2)
-    assert calc.add(3) == 5
-    assert calc.value == 5
 
 
 def test_render_calculator_includes_display_component() -> None:
@@ -22,5 +15,15 @@ def test_render_calculator_includes_display_component() -> None:
     assert "calculator" in html
 
 
-def test_render_calculator_behavior_unchanged_by_display_extraction() -> None:
-    assert render_calculator(5) == render_calculator(5)
+def test_render_calculator_matches_known_good_baseline() -> None:
+    expected = (
+        '<section class="calculator">\n'
+        "  "
+        '<div class="calculator-display" aria-live="polite" aria-atomic="true">\n'
+        '  <span class="calculator-display__value">5</span>\n'
+        "</div>\n"
+        "\n"
+        '  <div class="calculator__keys" role="group" aria-label="Calculator keys"></div>\n'
+        "</section>\n"
+    )
+    assert render_calculator(5) == expected

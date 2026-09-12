@@ -24,9 +24,14 @@ def format_value(value: object) -> str:
         number = float(value)
     except (TypeError, ValueError):
         return _ERROR
-    if math.isnan(number):
+    if math.isnan(number) or math.isinf(number):
         return _ERROR
     if number.is_integer():
         return str(int(number))
     text = repr(number)
+    if "e" in text or "E" in text:
+        mantissa, _, exp = text.lower().partition("e")
+        if "." in mantissa:
+            mantissa = mantissa.rstrip("0").rstrip(".")
+        return f"{mantissa}e{exp}"
     return text.rstrip("0").rstrip(".") if "." in text else text

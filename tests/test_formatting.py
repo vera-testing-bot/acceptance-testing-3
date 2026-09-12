@@ -28,3 +28,17 @@ def test_format_value_rejects_nan() -> None:
     import math
 
     assert format_value(math.nan) == "Error"
+
+
+def test_format_value_rejects_infinity() -> None:
+    import math
+
+    assert format_value(math.inf) == "Error"
+    assert format_value(float("-inf")) == "Error"
+    assert format_value(1e400) == "Error"
+
+
+def test_format_value_preserves_scientific_notation() -> None:
+    assert format_value(1.5e-10) == "1.5e-10"
+    assert format_value(1.5e-20) == "1.5e-20"
+    assert format_value(3.14e-100) == "3.14e-100"
